@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClientConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">productos-service</a> &gt; <a href="index.source.html" class="el_package">com.bootcamp.productos.config</a> &gt; <span class="el_source">ClientConfig.java</span></div><h1>ClientConfig.java</h1><pre class="source lang-java linenums">package com.bootcamp.productos.config;
+
+import com.bootcamp.productos.client.catalog.api.CatalogApi;
+import com.bootcamp.productos.client.discount.api.DiscountApi;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+
+/**
+ * Clientes HTTP generados desde los contratos de catalogo-service y descuento-service.
+ *
+ * TIMEOUTS: antes no había. Si catálogo o descuento se colgaban, este servicio esperaba
+ * para siempre y agotaba sus hilos. Ahora una llamada lenta falla rápido y se maneja
+ * (descuento -&gt; 0%, catálogo -&gt; 503).
+ */
+@Configuration
+<span class="nc" id="L20">public class ClientConfig {</span>
+
+    /** RestTemplateBuilder asegura que Micrometer propague el traceId a los otros servicios. */
+    @Bean
+    public RestTemplate restTemplate(
+            RestTemplateBuilder builder,
+            @Value(&quot;${services.http.connect-timeout:2s}&quot;) Duration connectTimeout,
+            @Value(&quot;${services.http.read-timeout:3s}&quot;) Duration readTimeout) {
+<span class="nc" id="L28">        return builder</span>
+<span class="nc" id="L29">                .setConnectTimeout(connectTimeout)</span>
+<span class="nc" id="L30">                .setReadTimeout(readTimeout)</span>
+<span class="nc" id="L31">                .build();</span>
+    }
+
+    @Bean
+    public CatalogApi catalogApi(RestTemplate restTemplate, @Value(&quot;${services.catalog.url}&quot;) String url) {
+<span class="nc" id="L36">        var apiClient = new com.bootcamp.productos.client.catalog.ApiClient(restTemplate);</span>
+<span class="nc" id="L37">        apiClient.setBasePath(url);</span>
+<span class="nc" id="L38">        return new CatalogApi(apiClient);</span>
+    }
+
+    @Bean
+    public DiscountApi discountApi(RestTemplate restTemplate, @Value(&quot;${services.discount.url}&quot;) String url) {
+<span class="nc" id="L43">        var apiClient = new com.bootcamp.productos.client.discount.ApiClient(restTemplate);</span>
+<span class="nc" id="L44">        apiClient.setBasePath(url);</span>
+<span class="nc" id="L45">        return new DiscountApi(apiClient);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

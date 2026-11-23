@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProductService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">productos-service</a> &gt; <a href="index.source.html" class="el_package">com.bootcamp.productos.service</a> &gt; <span class="el_source">ProductService.java</span></div><h1>ProductService.java</h1><pre class="source lang-java linenums">package com.bootcamp.productos.service;
+
+import com.bootcamp.productos.client.catalog.api.CatalogApi;
+import com.bootcamp.productos.client.catalog.model.CatalogPage;
+import com.bootcamp.productos.client.catalog.model.CatalogResponse;
+import com.bootcamp.productos.client.discount.api.DiscountApi;
+import com.bootcamp.productos.client.discount.model.DiscountResponse;
+import com.bootcamp.productos.exception.ProductoNoEncontradoException;
+import com.bootcamp.productos.exception.ServicioNoDisponibleException;
+import com.bootcamp.productos.model.ProductDetailResponse;
+import com.bootcamp.productos.model.ProductPage;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClientException;
+
+/**
+ * Agrega catálogo + descuento y calcula el precio final.
+ *
+ * Reglas de resiliencia (documentadas en products-api.yaml):
+ *  - Catálogo responde 404           -&gt; el producto no existe (404).
+ *  - Catálogo no responde / falla    -&gt; 503 (sin catálogo no hay nada que mostrar).
+ *  - Descuento responde 404          -&gt; 0% (el producto no tiene descuento).
+ *  - Descuento no responde / falla   -&gt; 0% (degradación elegante: se vende a precio completo).
+ */
+@Service
+public class ProductService {
+
+<span class="fc" id="L33">    private static final Logger log = LoggerFactory.getLogger(ProductService.class);</span>
+    private static final String CATALOGO = &quot;catálogo&quot;;
+
+    private final CatalogApi catalogo;
+    private final DiscountApi descuentos;
+
+<span class="fc" id="L39">    public ProductService(CatalogApi catalogo, DiscountApi descuentos) {</span>
+<span class="fc" id="L40">        this.catalogo = catalogo;</span>
+<span class="fc" id="L41">        this.descuentos = descuentos;</span>
+<span class="fc" id="L42">    }</span>
+
+    public ProductDetailResponse obtenerProducto(Long id) {
+<span class="fc" id="L45">        log.debug(&quot;Consultando catálogo para ID: {}&quot;, id);</span>
+        CatalogResponse producto;
+        try {
+<span class="fc" id="L48">            producto = catalogo.getCatalogByProductId(id);</span>
+<span class="fc" id="L49">        } catch (HttpClientErrorException.NotFound e) {</span>
+<span class="fc" id="L50">            throw new ProductoNoEncontradoException(id);</span>
+<span class="fc" id="L51">        } catch (RestClientException e) {</span>
+<span class="fc" id="L52">            log.error(&quot;catalogo-service no disponible al consultar el producto {}&quot;, id, e);</span>
+<span class="fc" id="L53">            throw new ServicioNoDisponibleException(CATALOGO, e);</span>
+<span class="fc" id="L54">        }</span>
+<span class="fc" id="L55">        return consolidar(producto);</span>
+    }
+
+    /**
+     * Pagina sobre el catálogo y agrega el descuento de cada producto.
+     * Nota de diseño: hace 1 llamada a descuento por producto (patrón N+1). Con size &lt;= 100 es
+     * aceptable en el laboratorio; en producción conviene un endpoint de descuentos por lote.
+     */
+    public ProductPage listarProductos(Integer page, Integer size) {
+        CatalogPage pagina;
+        try {
+<span class="fc" id="L66">            pagina = catalogo.listCatalog(page, size);</span>
+<span class="fc" id="L67">        } catch (RestClientException e) {</span>
+<span class="fc" id="L68">            log.error(&quot;catalogo-service no disponible al listar (página {}, tamaño {})&quot;, page, size, e);</span>
+<span class="fc" id="L69">            throw new ServicioNoDisponibleException(CATALOGO, e);</span>
+<span class="fc" id="L70">        }</span>
+
+<span class="fc" id="L72">        List&lt;ProductDetailResponse&gt; items = pagina.getItems().stream().map(this::consolidar).toList();</span>
+<span class="fc" id="L73">        return new ProductPage()</span>
+<span class="fc" id="L74">                .items(items)</span>
+<span class="fc" id="L75">                .page(pagina.getPage())</span>
+<span class="fc" id="L76">                .size(pagina.getSize())</span>
+<span class="fc" id="L77">                .totalElements(pagina.getTotalElements())</span>
+<span class="fc" id="L78">                .totalPages(pagina.getTotalPages());</span>
+    }
+
+    private ProductDetailResponse consolidar(CatalogResponse producto) {
+<span class="fc" id="L82">        BigDecimal base = producto.getBasePrice().setScale(2, RoundingMode.HALF_UP);</span>
+<span class="fc" id="L83">        BigDecimal porcentaje = obtenerDescuento(producto.getProductId()).setScale(2, RoundingMode.HALF_UP);</span>
+
+<span class="fc" id="L85">        return new ProductDetailResponse()</span>
+<span class="fc" id="L86">                .id(producto.getProductId())</span>
+<span class="fc" id="L87">                .name(producto.getName())</span>
+<span class="fc" id="L88">                .basePrice(base)</span>
+<span class="fc" id="L89">                .discountPercentage(porcentaje)</span>
+<span class="fc" id="L90">                .finalPrice(CalculadoraPrecio.precioFinal(base, porcentaje))</span>
+<span class="fc" id="L91">                .stock(producto.getStock());</span>
+    }
+
+    /** Nunca lanza excepción: cualquier problema con descuento-service equivale a 0%. */
+    private BigDecimal obtenerDescuento(Long id) {
+        try {
+<span class="fc" id="L97">            DiscountResponse descuento = descuentos.getDiscountByProductId(id);</span>
+<span class="pc bpc" id="L98" title="1 of 2 branches missed.">            BigDecimal porcentaje = descuento == null ? null : descuento.getPercentage();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">            if (!CalculadoraPrecio.porcentajeValido(porcentaje)) {</span>
+<span class="fc" id="L100">                log.warn(&quot;Descuento inválido para el producto {} ({}); se aplica 0%&quot;, id, porcentaje);</span>
+<span class="fc" id="L101">                return BigDecimal.ZERO;</span>
+            }
+<span class="fc" id="L103">            log.debug(&quot;Descuento de {}% para el producto {}&quot;, porcentaje, id);</span>
+<span class="fc" id="L104">            return porcentaje;</span>
+<span class="fc" id="L105">        } catch (HttpClientErrorException.NotFound e) {</span>
+<span class="fc" id="L106">            log.debug(&quot;El producto {} no tiene descuento vigente&quot;, id);</span>
+<span class="fc" id="L107">            return BigDecimal.ZERO;</span>
+<span class="fc" id="L108">        } catch (RestClientException e) {</span>
+<span class="fc" id="L109">            log.warn(&quot;descuento-service no disponible para el producto {}: {}. Se aplica 0%&quot;, id, e.getMessage());</span>
+<span class="fc" id="L110">            return BigDecimal.ZERO;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>

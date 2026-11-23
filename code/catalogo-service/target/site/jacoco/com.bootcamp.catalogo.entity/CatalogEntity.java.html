@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="es"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CatalogEntity.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">catalogo-service</a> &gt; <a href="index.source.html" class="el_package">com.bootcamp.catalogo.entity</a> &gt; <span class="el_source">CatalogEntity.java</span></div><h1>CatalogEntity.java</h1><pre class="source lang-java linenums">package com.bootcamp.catalogo.entity;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import java.math.BigDecimal;
+
+/**
+ * Tabla &quot;catalog&quot;. Es el modelo de PERSISTENCIA: no se expone directo en la API.
+ * La API usa los DTOs generados del contrato (CatalogResponse, CatalogPage);
+ * la conversión entre ambos vive en CatalogMapper.
+ */
+@Entity
+@Table(name = &quot;catalog&quot;)
+public class CatalogEntity {
+
+    @Id
+    @Column(name = &quot;product_id&quot;)
+    private Long productId;
+
+    @Column(name = &quot;name&quot;, nullable = false, length = 120)
+    private String name;
+
+    /** Dinero: BigDecimal con 2 decimales (nunca double). */
+    @Column(name = &quot;base_price&quot;, nullable = false, precision = 12, scale = 2)
+    private BigDecimal basePrice;
+
+    @Column(name = &quot;stock&quot;, nullable = false)
+    private Integer stock;
+
+<span class="nc" id="L32">    protected CatalogEntity() {</span>
+        // Requerido por JPA
+<span class="nc" id="L34">    }</span>
+
+<span class="fc" id="L36">    public CatalogEntity(Long productId, String name, BigDecimal basePrice, Integer stock) {</span>
+<span class="fc" id="L37">        this.productId = productId;</span>
+<span class="fc" id="L38">        this.name = name;</span>
+<span class="fc" id="L39">        this.basePrice = basePrice;</span>
+<span class="fc" id="L40">        this.stock = stock;</span>
+<span class="fc" id="L41">    }</span>
+
+    public Long getProductId() {
+<span class="fc" id="L44">        return productId;</span>
+    }
+
+    public String getName() {
+<span class="fc" id="L48">        return name;</span>
+    }
+
+    public BigDecimal getBasePrice() {
+<span class="fc" id="L52">        return basePrice;</span>
+    }
+
+    public Integer getStock() {
+<span class="fc" id="L56">        return stock;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.14.202510111229</span></div></body></html>
